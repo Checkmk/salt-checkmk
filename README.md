@@ -57,6 +57,9 @@ Copy "Automation secret for machine accounts" (e.g. 7ffb0ff9-d907-4140-b95e-fb9d
 2. Test the Salt check-mk-web-api Module
 
 ```bash
+salt-call check-mk-web-api.call method=get_all_users target=localhost site=cmk port=8080 user=automation secret=<paste here the automation secret>
+```
 
+3. cmk-mangage state module description and check**mk** Agent Installation example states comming soon ...
 
 
