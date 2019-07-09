@@ -37,5 +37,5 @@ def prepare(pillar_file, target, tgt_type=u'pillar', **kwargs):
             yaml.dump(pillar, output_stream, default_flow_style=False)
         return True
     except Exception as e:
-        return pprint.pformat(e)
+        LOG.debug(pprint.pformat(e))
 
