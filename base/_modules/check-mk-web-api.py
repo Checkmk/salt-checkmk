@@ -852,7 +852,7 @@ class WebApi:
         return self.make_request('activate_changes', query_params=query_params, data=data)
 
 
-def call(method, target, site, user, secret, port=80, **kwargs):
+def call(method, target, cmk_site, cmk_user, cmk_secret, port=80, **kwargs):
     """
     Execution Module to perform Check_MK Web API requests 
 
@@ -861,19 +861,19 @@ def call(method, target, site, user, secret, port=80, **kwargs):
     # Arguments
     method: Checkmk Web API Method
     target: IP / Hostname of the Checkmk Server
-    site: Checkmk Site 
-    user: Automation User (e.g. automation)
-    secret : Automation Secret
+    cmk_site: Checkmk Site 
+    cmk_user: Automation User (e.g. automation)
+    cmk_secret : Automation Secret
 
     **kwargs
 
     Examples:
-    salt cmkmaster check-mk-web-api.call method=activate_changes target=localhost site=master user=automation secret=b83d5f6c-f4e0-41ea-8tg6-1bbe495c6b13
-    salt-call check-mk-web-api.call check-mk-web-api.call method=get_all_users target=localhost site=cmk port=8080 user=automation secret=7ffb0ff9-d907-4140-b95e-fb9d9df2a585
+    salt cmkmaster check-mk-web-api.call method=activate_changes target=localhost cmk_site=master cmk_user=automation cmk_secret=b83d5f6c-f4e0-41ea-8tg6-1bbe495c6b13
+    salt-call check-mk-web-api.call check-mk-web-api.call method=get_all_cmk_users target=localhost cmk_site=cmk port=8080 cmk_user=automation cmk_secret=7ffb0ff9-d907-4140-b95e-fb9d9df2a585
     """
 
     #init API
-    api = WebApi('http://%s:%s/%s/check_mk/webapi.py' %(target, port, site), user, secret)
+    api = WebApi('http://%s:%s/%s/check_mk/webapi.py' %(target, port, cmk_site), cmk_user, cmk_secret)
     
     if type(method) == unicode:
         method = str(method)
