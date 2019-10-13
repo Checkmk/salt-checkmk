@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Salt execution module based on -> https://github.com/brennerm/check-mk-web-api
 
 import enum
@@ -8,8 +9,9 @@ import ast
 
 from six.moves import urllib
 
-#import logging
-#LOG = logging.getLogger(__name__)
+import logging
+LOG = logging.getLogger(__name__)
+import pprint
 
 class CheckMkWebApiException(Exception):
     """
@@ -180,7 +182,12 @@ class WebApi:
         if 'output_format' in query_params and query_params['output_format'] == 'python':
             body_dict = ast.literal_eval(body)
         else:
-            body_dict = json.loads(body)
+            try:
+                body_dict = json.loads(body)
+            except ValueError as e:
+                msg, result = body.split('\n')
+                body_dict = json.loads(result)
+                body_dict.update({'ValueError' : e, 'api-msg' : msg})
 
         result = body_dict['result']
         if body_dict['result_code'] == 0:
@@ -774,6 +781,19 @@ class WebApi:
         site_id (str): ID of site to edit
         site_config: config that will be set, have a look at return value of #WebApi.get_site
         """
+
+        # Remove unicode charachter from host string, to prevent rendering error in wato
+        # {'site_config': {u'socket': ('proxy', {u'params': None, u'socket': (u'30.1.1.1', 6556)}),}
+        #
+        if 'socket' in site_config:
+            if type(site_config['socket']) == tuple and site_config['socket'][0] == 'proxy':
+                if 'socket' in site_config['socket'][1]:
+                    try:
+                        host, port = site_config['socket'][1]['socket']
+                        site_config['socket'][1]['socket'] = (host.encode('utf-8'),port)
+                    except:
+                        pass
+
         data = NoNoneValueDict({
             'site_id': site_id,
             'site_config': site_config if site_config else {}
@@ -885,6 +905,7 @@ def call(method, target, cmk_site, cmk_user, cmk_secret, port=80, **kwargs):
     filter_args = {}
     for k, v in kwargs.items():
         if not k.startswith('__pub_'):
-           filter_args.update({k : v})
+           filter_args.update({k.encode('utf-8') : v })
+    LOG.debug("kwargs call:" + pprint.pformat(filter_args))
 
     return method(**filter_args)
