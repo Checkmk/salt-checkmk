@@ -22,8 +22,8 @@ This project describes how you can combine the powerful solutions check**mk** (m
 
 ## Content from different perspectives
 | Checkmk User        | Salt User      |
-| ------------------- |---------------:|
-|How to use Salt to improve or support your existing check**mk** monitoring environment          | How to setup easily a whole monitoring environment to monitor your minions in-depth |
+|:------------------- |---------------:|
+|How to use Salt to improve or support your existing check**mk** monitoring environment | How to setup easily a whole monitoring environment to monitor your minions in-depth |
 
 ---
 **Recommandations:** 
