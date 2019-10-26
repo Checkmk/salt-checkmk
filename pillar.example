@@ -1,0 +1,7 @@
+cmk-master:
+  site: cmk
+  port: 8080
+  automation-user: automation
+  automation-secret: <paste here the automation secret>
+  graintags: ['kernel', 'manufacturer', 'osfinger', 'virtual', 'productname']
+
