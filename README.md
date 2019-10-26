@@ -26,7 +26,7 @@ How to setup easily a whole monitoring environment to monitor your minions in-de
 - [Getting Started](docs/getting_started.md)
 - [Pillar & Grains](docs/cmk_pillar_grains.md)
 - [Install check**mk** Agent via Salt](docs/install_cmk_agent.md)
-- [Add Salt Minions & Grains to check**mk**](docs/add_minions_to_cmk.md)
+- [Add Salt Minions to check**mk**](docs/add_minions_to_cmk.md)
 - Dynamic Rollout of checkmk Agent Plugins
 - Using Salt Grains within check**mk**
 
