@@ -7,6 +7,7 @@
   ```
 
 By default the state will add your Minions to check**mk** with the following data set.
+
 | Checkmk value |Salt Grain(s) |
 |---------------|--------------|
 | Hostname      | id           |
