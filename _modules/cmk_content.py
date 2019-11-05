@@ -18,12 +18,15 @@ def prepare(pillar_file, target, tgt_type=u'pillar', prefix=None, **kwargs):
     Gather grain information from salt minions to provide them as pillar data for the monitoring master.
     In "simple" Salt Setups, that can be done by using the Salt Mine. If you have a Master-of-Masters Setup this module can do the job for you, executed at the master-of-masters.  
 
-    Params:
-    pillar_file
-    target
-    tgt_type
+    Args:
+    pillar_file (str): Pillar file to store data
+    target (str)  
+    tgt_type (str)
+    prefix (str): Prefix key within mk-host-grains pillar data. In some situations useful to merge data
 
-    Example: salt-call cmk_content.prepare pillar_file=/srv/pillar/grains_for_monitoring.sls target="dbnode*" tgt_type=glob prefix=syndic_x
+    CLI Example:
+    
+        salt-call cmk_content.prepare pillar_file=/srv/pillar/grains_for_monitoring.sls target="dbnode*" tgt_type=glob prefix=syndic_x
     '''
     local = salt.client.LocalClient()
     try:
@@ -40,7 +43,7 @@ def prepare(pillar_file, target, tgt_type=u'pillar', prefix=None, **kwargs):
 
         with open(pillar_file, 'w') as output_stream:
             yaml.dump(pillar, output_stream, default_flow_style=False)
-        return True
+        return "Data from %s hosts gathered" %len(ret)
     except Exception as e:
         return pprint.pformat(e)
 
