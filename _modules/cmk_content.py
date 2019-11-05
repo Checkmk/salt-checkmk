@@ -43,7 +43,7 @@ def prepare(pillar_file, target, tgt_type=u'pillar', prefix=None, **kwargs):
 
         with open(pillar_file, 'w') as output_stream:
             yaml.dump(pillar, output_stream, default_flow_style=False)
-        return "Data from %s hosts gathered" %len(ret)
+        return "Grain data from %s hosts gathered" %len(ret)
     except Exception as e:
         return pprint.pformat(e)
 

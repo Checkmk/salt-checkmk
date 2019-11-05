@@ -22,39 +22,45 @@ cmk-master:
 ```
 **Note**: Don't forget the replacement of the automation secret!
 
+```bash
+vi /srv/pillar/cmk-base.sls
+```
+
 All Grains which are defined in graintags will be later on pushed to the cmk monitoring site and can be used there.
 
 ## Gather Grains from Minions
 ![test](images/cmk_content_prepare.png)
 
-Gather grains from all minions that you plan to add to the monitoring site
+Gather grains from all minions that you plan to add to the monitoring site. Executed on your Salt-Master
 
 ```bash
-salt-call cmk_content.prepare pillar_file=/srv/pillar/grains_for_checkmk.sls target="*" tgt_type=glob 
+salt-call cmk_content.prepare pillar_file=/srv/pillar/grains_checkmk.sls target="*" tgt_type=glob 
 ```
 **Remark**:
 In general I prefer salt-mine to get this job done, but cmk_content.prepare will also work fine in complex master-of-master setups.
 
-## Assign Pillar to minion
-Provide the data Minion (MK Minion) which communicates with the checkmk Master
+## Assign Pillar to Minion
+Assign the collected grains to your designated "MK Minion" which communicates with the checkmk Master
 
-Example:
+Edit your top sls file e.g.:
+```bash
 vi /srv/pillar/top.sls
-
+```
+Example content:
 ```yaml
 base:
-  '<your-MK-Minion>':
+  '<replace with your MK Minion ID>':
     - cmk-base
-    - grains_for_checkmk
+    - grains_checkmk
 ```
-Test
+## Test / Show pillar data
 ```bash
-salt your-MK-Minion pillar.items
+salt <MK-Minion> pillar.get cmk-master
 ```
 
 ![Output](images/pillar_items_cmk_master.png)
 
 ---
-|**Previous**||||**Next**|
-|:-|-|-|-|-:|
-| < [Getting Started](getting_started.md) ||^[Top](#pillar-&-grains)|| [Install check**mk** Agent via Salt](install_cmk_agent.md)>| 
+|**Previous**|[Top](#pillar-&-grains)|**Next**|
+|:-|-|-:|
+| < [Getting Started](getting_started.md) || [Install check**mk** Agent via Salt](install_cmk_agent.md) >| 

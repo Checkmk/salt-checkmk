@@ -32,43 +32,61 @@ Please consider recommendations from SaltStack:
 
 ![setup](/docs/images/setup.png)
 
+This is only one of many possible setups to use Salt and checkmk.
+
+To enable this setup:
+
+1. Designate one of your minions as Host for the checkmk Master.
+   (Recommendation: Linux based system)
+2. Install checkmk on your minion. For example by running a docker container
+
+https://hub.docker.com/r/checkmk/check-mk-raw
+
+```bash
+docker container run -dit -p 8080:5000 -v /omd/sites --name monitoring -v /etc/localtime:/etc/localtime --restart always checkmk/check-mk-raw:1.6.0-latest
+
+#gather the logon credentials from container logs
+docker logs -f <container id>
+```
+## Important Note
+The Minion that hosts check**mk** is in this documentation marked as **MK Minion**.
+Please replace in all examples the id < MK Minion > with the real Minion ID. 
 
 
 ## Connect Salt with check**mk**
-1. Log into your check**mk** environment
+Log into your check**mk** environment
 
-    In case that you have not already a running check**mk** Master, setup a new one e.g.:   
-    https://hub.docker.com/r/checkmk/check-mk-raw
-    
-    ```bash
-    docker container run -dit -p 8080:5000 -v /omd/sites --name monitoring -v /etc/localtime:/etc/localtime --restart always checkmk/check-mk-raw:1.6.0-latest
-    
-    #gather the logon credentials from container logs
-    docker logs -f <id>
-    ```
-    Open your Browser and perform login to cmk container
-    
-     `http://localhost:8080/cmk`
-    
-    ![checkmk logon](/docs/images/cmk-logon.png)
-    
-    Click on the left sidebar on **WATO · Configuration** ->  "Users"
-    
-    Edit user `automation`:
-    
-    ![checkmk automation user](/docs/images/cmk-automation-user.png)
-    
-    Copy "Automation secret for machine accounts" (e.g. 7ffb0ff9-d907-4140-b95e-fb9d9df2a5)
-    
-2. Test the Salt check-mk-web-api Module
-    
-    ```bash
-    salt-call saltutil.sync_all
+Open your Browser and perform login to cmk container
 
-    salt-call check-mk-web-api.call method=get_all_users target=localhost site=cmk port=8080 user=automation secret=<paste here the automation secret>
-    ```
+
+|          |                                     |
+|----------|-------------------------------------|
+| **URL**  |  http://`<IP MK Minion>`:8080/cmk   |
+| **USER** |  cmkadmin                           |
+| **PASSWORD** |  initial password (show docker logs) |
+ 
+
+![checkmk logon](images/cmk-logon.png)
+
+Click on the left sidebar on **WATO · Configuration** ->  "Users"
+
+![wato conf users](images/wato_conf_users.png)
+
+Edit user `automation`:
+
+![checkmk automation user](images/cmk-automation-user.png)
+
+Copy "Automation secret for machine accounts" (e.g. 7ffb0ff9-d907-4140-b95e-fb9d9df2a5)
+
+## Test the Salt check-mk-web-api Module
+
+```bash
+salt <MK Minion> saltutil.sync_all
+
+salt <MK Minion> check-mk-web-api.call method=get_all_users target=localhost cmk_site=cmk port=8080 cmk_user=automation cmk_secret=<paste here the automation secret>
+```
 
 ---
-|**Previous**||||||**Next**|
-|:-|-|-|------------|-|-|-:|
-| < [Readme](../README.md) |||^[Top](#getting-started)||| [Pillar & Grains](cmk_pillar_grains.md)>| 
+|**Previous**|[Top](#getting-started)|**Next**|
+|:-|-|-:|
+| < [Readme](../README.md) || [Pillar & Grains](cmk_pillar_grains.md) >| 
