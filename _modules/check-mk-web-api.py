@@ -889,7 +889,7 @@ def call(method, target, cmk_site, cmk_user, cmk_secret, port=80, **kwargs):
 
     Examples:
     salt cmkmaster check-mk-web-api.call method=activate_changes target=localhost cmk_site=master cmk_user=automation cmk_secret=b83d5f6c-f4e0-41ea-8tg6-1bbe495c6b13
-    salt-call check-mk-web-api.call check-mk-web-api.call method=get_all_cmk_users target=localhost cmk_site=cmk port=8080 cmk_user=automation cmk_secret=7ffb0ff9-d907-4140-b95e-fb9d9df2a585
+    salt-call check-mk-web-api.call method=get_all_users target=localhost cmk_site=cmk port=8080 cmk_user=automation cmk_secret=7ffb0ff9-d907-4140-b95e-fb9d9df2a585
     """
 
     #init API
@@ -908,4 +908,6 @@ def call(method, target, cmk_site, cmk_user, cmk_secret, port=80, **kwargs):
            filter_args.update({k.encode('utf-8') : v })
     LOG.debug("kwargs call:" + pprint.pformat(filter_args))
 
+    LOG.debug(filter_args)
+    
     return method(**filter_args)
