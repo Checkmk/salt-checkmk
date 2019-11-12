@@ -142,7 +142,7 @@ def dynamic_plugin_rollout(name, rulepack, source, instpath='DEFAULT'):
 
     return ret
 
-def site_connected(name, target, cmk_site, cmk_user, cmk_secret, force=False, **custom_attrs):
+def site_connected(name, target, cmk_site, cmk_user, cmk_secret, port, force=False, **custom_attrs):
     '''
     Ensure that the specified slave site (name) is connected to the cmk master 
     Params: 
@@ -201,8 +201,9 @@ def site_connected(name, target, cmk_site, cmk_user, cmk_secret, force=False, **
 
     return ret
 
+ 
 
-def site_present(name, target, cmk_site, cmk_user, cmk_secret, **custom_attrs):
+def site_present(name, target, cmk_site, cmk_user, cmk_secret, port, **custom_attrs):
     '''
     Ensure that the specified site is present at the cmk target system
 
@@ -311,7 +312,7 @@ def site_present(name, target, cmk_site, cmk_user, cmk_secret, **custom_attrs):
 
 
 
-def folder_present(name, target, cmk_site, cmk_user, cmk_secret, **custom_attrs):
+def folder_present(name, target, cmk_site, cmk_user, cmk_secret, port, **custom_attrs):
     '''
     Ensure that the specified folder is present at the cmk target system
 
@@ -496,7 +497,7 @@ def host_present(name, target, cmk_site, cmk_user, cmk_secret, discover=False, *
     return ret
 
 
-def hosttags_present(name, target, cmk_site, cmk_user, cmk_secret, aux_tags={}, tag_groups={}):
+def hosttags_present(name, target, cmk_site, cmk_user, cmk_secret, port, aux_tags={}, tag_groups={}):
     '''
     Ensure that the specified hosttags are present at the cmk target system
 
@@ -536,6 +537,7 @@ def hosttags_present(name, target, cmk_site, cmk_user, cmk_secret, aux_tags={}, 
                 'cmk_site' : cmk_site,
                 'cmk_user' : cmk_user,
                 'cmk_secret' : cmk_secret,
+                'port' : port,
                  }
     LOG.debug("aux_tags_params(%s): %s" %(type(aux_tags), aux_tags))
     LOG.debug("tag_groups params(%s): %s" %(type(tag_groups), tag_groups))
