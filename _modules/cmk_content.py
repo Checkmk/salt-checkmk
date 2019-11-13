@@ -34,8 +34,8 @@ def prepare(pillar_file, target, tgt_type=u'pillar', prefix=None, **kwargs):
     graintags = {}
 
     # try to fetch graintags from pillars
-    try:    
-        grain_tag_list =  __pillar__['cmk-master']['graintags']
+    try: 
+        grain_tag_list = __pillar__['cmk-master']['graindefaults']  + __pillar__['cmk-master']['graintags'] 
     except:
         grain_tag_list = False
 
@@ -45,7 +45,10 @@ def prepare(pillar_file, target, tgt_type=u'pillar', prefix=None, **kwargs):
             graintags[minion] = {}
             if grain_tag_list:
                 for grain in grain_tag_list:
-                    graintags[minion][grain] = str(grains[grain])
+                    try:
+                        graintags[minion][grain] = grains[grain]
+                    except:
+                        LOG.debug(grain + "-> Grain not defined!")
             # Fallback gather all grains from minion
             else:
                 graintags[minion] = grains
