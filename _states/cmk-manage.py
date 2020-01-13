@@ -142,7 +142,7 @@ def dynamic_plugin_rollout(name, rulepack, source, instpath='DEFAULT'):
 
     return ret
 
-def site_connected(name, target, cmk_site, cmk_user, cmk_secret, port, force=False, **custom_attrs):
+def site_connected(name, target, cmk_site, cmk_user, cmk_secret, port=80, force=False, **custom_attrs):
     '''
     Ensure that the specified slave site (name) is connected to the cmk master 
     Params: 
@@ -203,7 +203,7 @@ def site_connected(name, target, cmk_site, cmk_user, cmk_secret, port, force=Fal
 
  
 
-def site_present(name, target, cmk_site, cmk_user, cmk_secret, port, **custom_attrs):
+def site_present(name, target, cmk_site, cmk_user, cmk_secret, port=80, **custom_attrs):
     '''
     Ensure that the specified site is present at the cmk target system
 
@@ -312,7 +312,7 @@ def site_present(name, target, cmk_site, cmk_user, cmk_secret, port, **custom_at
 
 
 
-def folder_present(name, target, cmk_site, cmk_user, cmk_secret, port, **custom_attrs):
+def folder_present(name, target, cmk_site, cmk_user, cmk_secret, port=80, **custom_attrs):
     '''
     Ensure that the specified folder is present at the cmk target system
 
@@ -342,7 +342,6 @@ def folder_present(name, target, cmk_site, cmk_user, cmk_secret, port, **custom_
     base_kwargs['folder'] = name
 
     kwargs.update(base_kwargs)
-    #kwargs.update(custom_attrs)
 
     # add_folder expects another format for tag definitions
     if 'tags' in custom_attrs:
@@ -358,24 +357,24 @@ def folder_present(name, target, cmk_site, cmk_user, cmk_secret, port, **custom_
         new_properties = {}
         current_attributes = api_ret['attributes']
 
+        # iterate over all attributes defined via salt
         for k, v in custom_attrs.items():
+            # if an attribute is not already defined in wato -> add attribute
             if k not in api_ret['attributes']:
-                # property currently not defined
-                new_properties.append({ k : v})
-                current_attributes.pop(k)
+                new_properties.update({ k : v})
 
+            # property already defined in wato but value does not match salt definiton
             elif not v == api_ret['attributes'][k]:
-                # property defined but value does not match salt definiton
                 new_properties.update({ k : v})
                 current_attributes.pop(k)
    
         if len(new_properties) > 0:
             ret['comment'] = "Folder exists but properties not matching with salt definitions"
             kwargs['method'] = 'edit_folder'
-            LOG.debug(_merge_dicts(current_attributes, new_properties))
-            for tag, value in _merge_dicts(current_attributes, new_properties).items():
-                if tag not in kwargs:
-                    kwargs[tag] = value
+            LOG.debug("merge_dict: %s" %_merge_dicts(current_attributes, new_properties))
+            # merge already defined attributes from wato with new salt attributes and update kwargs 
+            kwargs.update(_merge_dicts(current_attributes, new_properties))
+
             api_ret = __salt__['check-mk-web-api.call'](**kwargs)
             ret['changes'] = {'Properties changed:' : new_properties }
             ret['result'] = True
@@ -497,7 +496,7 @@ def host_present(name, target, cmk_site, cmk_user, cmk_secret, discover=False, *
     return ret
 
 
-def hosttags_present(name, target, cmk_site, cmk_user, cmk_secret, port, aux_tags={}, tag_groups={}):
+def hosttags_present(name, target, cmk_site, cmk_user, cmk_secret, port=80, aux_tags={}, tag_groups={}):
     '''
     Ensure that the specified hosttags are present at the cmk target system
 
