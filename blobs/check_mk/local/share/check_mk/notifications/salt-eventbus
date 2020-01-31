@@ -1,0 +1,19 @@
+#!/usr/bin/python
+# Salt Event Bus
+
+# Consult https://docs.saltstack.com/en/latest/ref/configuration/nonroot.html before use
+
+import sys
+import os
+
+if __name__ == "__main__":
+    sys.path.append('%s/lib/python' %os.environ['HOME']) 
+    from cmk.notification_plugins import utils
+
+    # get notifcation context as dict
+    context = utils.collect_context()
+
+    # import salt client and fire event to master
+    import salt.client
+    caller = salt.client.Caller()
+    caller.cmd('event.fire_master', context, 'checkmk/notification')
