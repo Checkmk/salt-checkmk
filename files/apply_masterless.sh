@@ -4,7 +4,7 @@ FORMULA_PATH=/srv/formulas/salt-checkmk
 PILLAR_PATH=/srv/pillar
 
 # create default folders
-mkdir -p /srv/salt /srv/pillar
+mkdir -p /srv/salt $PILLAR_PATH
 
 # copy minion conf & default pillar
 cp $FORMULA_PATH/files/masterless.conf $MINION_CONFD
