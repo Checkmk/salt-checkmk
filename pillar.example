@@ -1,8 +1,27 @@
-cmk-master:
-  site: cmk
-  port: 8080
-  automation-user: automation
-  automation-secret: <paste here the automation secret>
-  graindefaults: ['id', 'host', 'ipv4', 'ipv6', 'cmk-agent-ip']
-  graintags: ['kernel', 'manufacturer', 'osfinger', 'virtual', 'productname']
+omd:
+  defaults:
+    base:
+      version: 2.0.0p3.cfe
+      no_tmpfs: true
+    params:
+      AUTOSTART: off
+      LIVESTATUS_TCP: off
+
+  sites:
+    demo01: {}
+
+    demo02:
+      params:
+        LIVESTATUS_TCP: on
+        LIVESTATUS_TCP_PORT: 10002
+
+    demo03:
+      base:
+        no_tmpfs: false
+        tmpfs_size: 100M
+        version: 1.5.0p25.cee.demo
+      params:
+        AUTOSTART: on
+        LIVESTATUS_TCP: on
+        LIVESTATUS_TCP_PORT: 10003
 
