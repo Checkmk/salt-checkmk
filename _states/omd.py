@@ -26,14 +26,14 @@ def site_absent(name):
         if not dry_run:
             __salt__['omd.remove_site'](name)
 
-        action = f"Site {name} removed"
+        action = "Site {name} removed".format(name=name)
         comment = action
         changes = { 'diff' : {
                 'actions' : action,
                 }
             }
     else:
-        comment = f"Site {name} is already absent"
+        comment = "Site {name} is already absent".format(name=name)
     
 
     ret.update({
@@ -83,7 +83,7 @@ def site_present(name, version=None, admin_password=None, no_tmpfs=None, tmpfs_s
 
     # Check omd site already exists
     if __salt__['omd.site_exists'](name):
-        comment = f"OMD site {name} already exists"
+        comment = "OMD site {name} already exists".format(name=name)
 
         # Site exits!
         # Check site has the defined version
@@ -92,15 +92,15 @@ def site_present(name, version=None, admin_password=None, no_tmpfs=None, tmpfs_s
             # Version doesn't match specified version
             if not dry_run:
                 __salt__['omd.update_site'](name,version)
-            comment += f" but not with the defined version: {version}"
-            actions.append(f"Update site from {old_version} -> {version}")
+            comment += " but not with the defined version: {version}".format(version=version)
+            actions.append("Update site from {old_version} -> {version}".format(old_version=old_version, version=version))
         else:
             # Version OK
-            comment += f" with defined version: {version}"
+            comment += " with defined version: {version}".format(version=version)
 
     else:
         # Create new Site
-        comment = f"Create new OMD site {name}"
+        comment = "Create new OMD site {name}".format(name=name)
         actions.append("Create new Site")        
         if not dry_run:
             __salt__['omd.create_site'](name, version, admin_password, no_tmpfs, tmpfs_size)
@@ -131,7 +131,7 @@ def site_present(name, version=None, admin_password=None, no_tmpfs=None, tmpfs_s
         if len(change_params['new']) > 0:
             changes['diff']['detailed-changes'] = change_params
     else:
-        comment += f" and specified parameters"
+        comment += " and specified parameters"
         changes = {}
 
     ret.update({
