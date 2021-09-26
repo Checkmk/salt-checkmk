@@ -9,6 +9,7 @@ import ast
 
 from six.moves import urllib
 
+
 import logging
 LOG = logging.getLogger(__name__)
 import pprint
@@ -54,12 +55,10 @@ class NoNoneValueDict(dict):
 class WebApi:
     """
     Abstraction for Check_Mk Web API
-
     # Arguments
     check_mk_url (str): URL to Check_Mk web application, multiple formats are supported
     username (str): Name of user to connect as. Make sure this is an automation user.
     secret (str): Secret for automation user. This is different from the password!
-
     # Examples
     ```python
     WebApi('http://checkmk.company.com/monitor/check_mk/webapi.py', 'automation', 'secret')
@@ -73,10 +72,10 @@ class WebApi:
     """
 
     __DISCOVERY_REGEX = {
-        'added': re.compile(r'.*Added (\d+),.*'),
-        'removed': re.compile(r'.*Removed (\d+),.*'),
-        'kept': re.compile(r'.*Kept (\d+),.*'),
-        'new_count': re.compile(r'.*New Count (\d+)$')
+        'added': [re.compile(r'.*Added (\d+),.*')],
+        'removed': [re.compile(r'.*[Rr]emoved (\d+),.*')],
+        'kept': [re.compile(r'.*[Kk]ept (\d+),.*')],
+        'new_count': [re.compile(r'.*New Count (\d+)$'), re.compile(r'.*(\d+) new.*')]  # output changed in 1.6 so we have to try multiple patterns
     }
 
     class DiscoverMode(enum.Enum):
@@ -126,6 +125,8 @@ class WebApi:
         elif request_format == 'python':
             request_string = 'request=' + str(data)
 
+        request_string = urllib.parse.quote(request_string, safe="{[]}\"=, :")
+
         return request_string.encode()
 
     def __build_request_path(self, query_params=None):
@@ -147,12 +148,10 @@ class WebApi:
     def make_request(self, action, query_params=None, data=None):
         """
         Make arbitrary request to Check_Mk Web API
-
         # Arguments
         action (str): Action request, e.g. add_host
         query_params (dict): dict of path parameters
         data (dict): dict that will be sent as request body
-
         # Raises
         CheckMkWebApiResponseException: Raised when the HTTP status code != 200
         CheckMkWebApiException: Raised when the action's result_code != 0
@@ -175,19 +174,18 @@ class WebApi:
             raise CheckMkWebApiResponseException(response)
 
         body = response.read().decode()
-
-        if body.startswith('Authentication error:'):
+        LOG.debug("BODY")
+        LOG.debug(body)
+        #Permission denied: Invalid automation secret for user automation for user automation
+        #if body.startswith('Authentication error:') or :
+        if re.match('(^Authentication error:|Permission denied: Invalid automation secret)', body):
             raise CheckMkWebApiAuthenticationException(body)
 
         if 'output_format' in query_params and query_params['output_format'] == 'python':
             body_dict = ast.literal_eval(body)
         else:
-            try:
-                body_dict = json.loads(body)
-            except ValueError as e:
-                msg, result = body.split('\n')
-                body_dict = json.loads(result)
-                body_dict.update({'ValueError' : e, 'api-msg' : msg})
+            body_dict = json.loads(body)
+            LOG.debug(body)
 
         result = body_dict['result']
         if body_dict['result_code'] == 0:
@@ -199,7 +197,6 @@ class WebApi:
                  alias=None, tags=None, **custom_attrs):
         """
         Adds a nonexistent host to the Check_MK inventory
-
         # Arguments
         hostname (str): Name of host to add
         folder (str): Name of folder to add the host to
@@ -234,7 +231,6 @@ class WebApi:
     def edit_host(self, hostname, unset_attributes=None, **custom_attrs):
         """
         Edits the properties of an existing host
-
         # Arguments
         hostname (str): Name of host to edit
         unset_attributes (list): List of attributes to unset
@@ -253,7 +249,6 @@ class WebApi:
     def delete_host(self, hostname):
         """
         Deletes a host from the Check_MK inventory
-
         # Arguments
         hostname (str): Name of host to delete
         """
@@ -262,6 +257,19 @@ class WebApi:
         })
 
         return self.make_request('delete_host', data=data)
+
+    def delete_hosts(self, hostnames):
+        """
+        Deletes multiple hosts from the Check_MK inventory
+        # Arguments
+        hostnames (list): Name of hosts to delete
+        """
+        data = NoNoneValueDict({
+            'hostnames': hostnames
+        })
+
+        return self.make_request('delete_hosts', data=data)
+
 
     def delete_all_hosts(self):
         """
@@ -275,7 +283,6 @@ class WebApi:
     def get_host(self, hostname, effective_attributes=False):
         """
         Gets one host
-
         # Arguments
         hostname (str): Name of host to get
         effective_attributes (bool): If True attributes with default values will be returned
@@ -293,7 +300,6 @@ class WebApi:
     def get_all_hosts(self, effective_attributes=False):
         """
         Gets all hosts
-
         # Arguments
         effective_attributes (bool): If True attributes with default values will be returned
         """
@@ -306,7 +312,6 @@ class WebApi:
     def get_hosts_by_folder(self, folder, effective_attributes=False):
         """
         Gets hosts in folder
-
         # Arguments
         folder (str): folder to get hosts for
         effective_attributes (bool): If True attributes with default values will be returned
@@ -322,7 +327,6 @@ class WebApi:
     def discover_services(self, hostname, mode=DiscoverMode.NEW):
         """
         Discovers the services of a specific host
-
         # Arguments
         hostname (str): Name of host to discover services for
         mode (DiscoverMode): see #WebApi.DiscoverMode
@@ -331,32 +335,81 @@ class WebApi:
             'hostname': hostname,
         })
 
-        query_params = {
+        if type(mode) == str:
+            query_params = { 'mode': mode }
+
+        else:
+            query_params = {
             'mode': mode.value
         }
 
         result = self.make_request('discover_services', data=data, query_params=query_params)
 
         counters = {}
-        for k, regex in WebApi.__DISCOVERY_REGEX.items():
-            counters[k] = regex.match(result).group(1)
+        for k, patterns in WebApi.__DISCOVERY_REGEX.items():
+            for pattern in patterns:
+                try:
+                    counters[k] = pattern.match(result).group(1)
+                except AttributeError:
+                    continue
 
         return counters
 
     def discover_services_for_all_hosts(self, mode=DiscoverMode.NEW):
         """
         Discovers the services of all hosts
-
         # Arguments
         mode (DiscoverMode): see #WebApi.DiscoverMode
         """
         for host in self.get_all_hosts():
             self.discover_services(host, mode)
 
+    def bulk_discovery_all_hosts(self, mode=DiscoverMode.NEW, use_cache=True, do_scan=True, bulk_size=10,
+                                 ignore_single_check_errors=True):
+        """
+        Bulk discovers the services of all hosts
+        # Arguments
+        mode (DiscoverMode): see #WebApi.DiscoverMode
+        use_cache (bool): use cache for discovery
+        do_scan (bool): do scan
+        bulk_size (int): number of hosts to handle at once
+        ignore_single_check_errors (bool): Ignore errors in single check plugins
+        """
+        hostnames = []
+        for host in self.get_all_hosts():
+            hostnames.append(host)
+        self.bulk_discovery_start(hostnames, mode, use_cache, do_scan, bulk_size, ignore_single_check_errors)
+
+    def bulk_discovery_start(self, hostnames, mode=DiscoverMode.NEW, use_cache=True, do_scan=True, bulk_size=10,
+                             ignore_single_check_errors=True):
+        """
+        Start bulk discovery for multiple hosts
+        # Arguments
+        mode (DiscoverMode): see #WebApi.DiscoverMode
+        use_cache (bool): use cache for discovery
+        do_scan (bool): do scan
+        bulk_size (int): number of hosts to handle at once
+        ignore_single_check_errors (bool): Ignore errors in single check plugins
+        """
+        data = NoNoneValueDict({
+            'hostnames': hostnames,
+            'mode': mode.value,
+            "use_cache": use_cache,
+            "do_scan": do_scan,
+            "bulk_size": bulk_size,
+            "ignore_single_check_errors": ignore_single_check_errors
+        })
+        self.make_request('bulk_discovery_start', data=data, query_params=None)
+
+    def bulk_discovery_status(self):
+        """
+        Get status of bulk discovery
+        """
+        return self.make_request('bulk_discovery_status', data=None, query_params=None)
+
     def get_user(self, user_id):
         """
         Gets a single user
-
         # Arguments
         user_id (str): ID of user to get
         """
@@ -371,7 +424,6 @@ class WebApi:
     def add_user(self, user_id, username, password, **custom_attrs):
         """
         Adds a new user
-
         # Arguments
         user_id (str): user ID that will be used to log in
         username (str): name of the user to create
@@ -394,7 +446,6 @@ class WebApi:
     def add_automation_user(self,user_id, username, secret, **custom_attrs):
         """
         Adds a new automation user
-
         # Arguments
         user_id (str): user ID that will be used to log in
         username (str): name of the user to create
@@ -417,7 +468,6 @@ class WebApi:
     def edit_user(self, user_id, attributes, unset_attributes=None):
         """
         Edits an existing user
-
         # Arguments
         user_id (str): ID of user to edit
         attributes (dict): attributes to set for given host
@@ -437,7 +487,6 @@ class WebApi:
     def delete_user(self, user_id):
         """
         Deletes a user
-
         # Arguments
         user_id (str): ID of user to delete
         """
@@ -450,7 +499,6 @@ class WebApi:
     def get_folder(self, folder, effective_attributes=False):
         """
         Gets one folder
-
         # Arguments
         folder (str): name of folder to get
         effective_attributes (bool): If True attributes with default values will be returned
@@ -474,7 +522,6 @@ class WebApi:
     def add_folder(self, folder, **attributes):
         """
         Adds a new folder
-
         # Arguments
         folder (str): name of folder to add
         attributes (dict): attributes to set for the folder, look at output from #WebApi.get_folder
@@ -489,7 +536,6 @@ class WebApi:
     def edit_folder(self, folder, **attributes):
         """
         Edits an existing folder
-
         # Arguments
         folder (str): name of folder to edit
         attributes (dict): attributes to set for the folder, look at output from #WebApi.get_folder
@@ -504,7 +550,6 @@ class WebApi:
     def delete_folder(self, folder):
         """
         Deletes an existing folder
-
         # Arguments
         folder (str): name of folder to delete
         """
@@ -517,7 +562,6 @@ class WebApi:
     def get_contactgroup(self, group):
         """
         Gets one contact group
-
         # Arguments
         group (str): name of contact group to get
         """
@@ -532,7 +576,6 @@ class WebApi:
     def add_contactgroup(self, group, alias):
         """
         Adds a contact group
-
         # Arguments
         group (str): name of group to add
         alias (str): alias for group
@@ -547,7 +590,6 @@ class WebApi:
     def edit_contactgroup(self, group, alias):
         """
         Edits a contact group
-
         # Arguments
         group (str): name of group to edit
         alias (str): new alias for group
@@ -562,7 +604,6 @@ class WebApi:
     def delete_contactgroup(self, group):
         """
         Deletes a contact group
-
         # Arguments
         group (str): name of group to delete
         """
@@ -582,7 +623,6 @@ class WebApi:
     def get_hostgroup(self, group):
         """
         Gets one host group
-
         # Arguments
         group (str): name of host group to get
         """
@@ -597,7 +637,6 @@ class WebApi:
     def add_hostgroup(self, group, alias):
         """
         Adds a host group
-
         # Arguments
         group (str): name of group to add
         alias (str): alias for group
@@ -612,7 +651,6 @@ class WebApi:
     def edit_hostgroup(self, group, alias):
         """
         Edits a host group
-
         # Arguments
         group (str): name of group to edit
         alias (str): new alias for group
@@ -627,7 +665,6 @@ class WebApi:
     def delete_hostgroup(self, group):
         """
         Deletes a host group
-
         # Arguments
         group (str): name of group to delete
         """
@@ -656,7 +693,6 @@ class WebApi:
     def add_servicegroup(self, group, alias):
         """
         Adds a service group
-
         # Arguments
         group (str): name of group to add
         alias (str): alias for group
@@ -671,7 +707,6 @@ class WebApi:
     def edit_servicegroup(self, group, alias):
         """
         Edits a service group
-
         # Arguments
         group (str): name of group to edit
         alias (str): new alias for group
@@ -686,7 +721,6 @@ class WebApi:
     def delete_servicegroup(self, group):
         """
         Deletes a service group
-
         # Arguments
         group (str): name of group to delete
         """
@@ -706,7 +740,6 @@ class WebApi:
     def get_ruleset(self, ruleset):
         """
         Gets one rule set
-
         # Arguments
         ruleset (str): name of rule set to get
         """
@@ -725,7 +758,6 @@ class WebApi:
     def set_ruleset(self, ruleset, ruleset_config):
         """
         Edits one rule set
-
         # Arguments
         ruleset (str): name of rule set to edit
         ruleset_config (dict): config that will be set, have a look at return value of #WebApi.get_ruleset
@@ -750,9 +782,7 @@ class WebApi:
         As implemented by Check_MK, it is only possible to write the whole Host Tag Settings within an API-Call
         You can use the #WebApi.get_hosttags to get the current Tags, modify them and write the dict back via set_hosttags  
         To ensure that no Tags are modified in the meantime you can use the configuration_hash key.
-
         e.g. 'configuration_hash': u'f31ea758a59473d15f378b692110996c'
-
         # Arguments
         hosttags (dict) with 2 mandatory keys:  { 'aux_tags' : [], 'tag_groups' : [] }
         """
@@ -760,10 +790,53 @@ class WebApi:
 
         return self.make_request('set_hosttags', data=data)
 
+    def add_aux_tag(self, identifier, title, topic=None):
+        """
+        Adds an auxiliary host tag
+   
+        # Arguments
+        identifier (str): unique identifier of the tag to add
+        title (str): title of the tag to add
+        topic (str): topic of the tag to add
+        """
+        hosttags = self.get_hosttags()
+
+        hosttags.update(
+            aux_tags=hosttags.get('aux_tags', []) + [{
+                'id': identifier,
+                'title': title,
+                'topic': topic
+            }]
+        )
+
+        self.set_hosttags(hosttags)
+
+    def add_tag_group(self, identifier, title, tags, topic=None):
+        """
+        Adds a tag group
+   
+        # Arguments
+        identifier (str): unique identifier of the tag to add
+        title (str): title of the tag to add
+        tags (list): tag choices to add, e.g. [{"id": "high", "title": "High Availability", "aux_tags": []}, ...]
+        topic (str): topic of the tag to add
+        """
+        hosttags = self.get_hosttags()
+
+        hosttags.update(
+            tag_groups=hosttags.get('tag_groups', []) + [{
+                'id': identifier,
+                'title': title,
+                'topic': topic,
+                'tags': tags or []
+            }]
+        )
+
+        self.set_hosttags(hosttags)
+
     def get_site(self, site_id):
         """
         Gets a site
-
         # Arguments
         site_id (str): ID of site to get
         """
@@ -776,7 +849,6 @@ class WebApi:
     def set_site(self, site_id, site_config):
         """
         Edits the connection to a site
-
         # Arguments
         site_id (str): ID of site to edit
         site_config: config that will be set, have a look at return value of #WebApi.get_site
@@ -793,7 +865,7 @@ class WebApi:
                         site_config['socket'][1]['socket'] = (host.encode('utf-8'),port)
                     except:
                         pass
-
+         
         data = NoNoneValueDict({
             'site_id': site_id,
             'site_config': site_config if site_config else {}
@@ -801,10 +873,10 @@ class WebApi:
 
         return self.make_request('set_site', data=data, query_params={'request_format': 'python'})
 
+
     def delete_site(self, site_id):
         """
         Deletes a connection to a site
-
         # Arguments
         site_id (str): ID of site to delete the connection to
         """
@@ -817,7 +889,6 @@ class WebApi:
     def login_site(self, site_id, user, password):
         """
         Logs in to site
-
         # Arguments
         site_id (str): ID of site to log in to
         """
@@ -832,7 +903,6 @@ class WebApi:
     def logout_site(self, site_id):
         """
         Logs out of site
-
         # Arguments
         site_id (str): ID of site to log out of
         """
@@ -845,16 +915,14 @@ class WebApi:
     def bake_agents(self):
         """
         Bakes all agents
-
         Enterprise Edition only!
         """
         return self.make_request('bake_agents')
 
-    def activate_changes(self, mode=ActivateMode.DIRTY,
+    def activate_changes(self, mode='dirty',
                          sites=None, allow_foreign_changes=False):
         """
         Activates all changes previously done
-
         # Arguments
         mode (ActivateMode): see #WebApi.ActivateMode
         sites (list): List of sites to activates changes on
@@ -865,7 +933,7 @@ class WebApi:
         })
 
         query_params = {
-            'mode': mode.value,
+            'mode': mode,
             'allow_foreign_changes': 1 if allow_foreign_changes else 0
         }
 
@@ -875,39 +943,35 @@ class WebApi:
 def call(method, target, cmk_site, cmk_user, cmk_secret, port=80, **kwargs):
     """
     Execution Module to perform Check_MK Web API requests 
-
+     
     The connection will be established from the minion to the targeted Checkmk Server. 
-
+     
     # Arguments
     method: Checkmk Web API Method
     target: IP / Hostname of the Checkmk Server
     cmk_site: Checkmk Site 
     cmk_user: Automation User (e.g. automation)
     cmk_secret : Automation Secret
-
+     
     **kwargs
-
+     
     Examples:
     salt cmkmaster check-mk-web-api.call method=activate_changes target=localhost cmk_site=master cmk_user=automation cmk_secret=b83d5f6c-f4e0-41ea-8tg6-1bbe495c6b13
     salt-call check-mk-web-api.call method=get_all_users target=localhost cmk_site=cmk port=8080 cmk_user=automation cmk_secret=7ffb0ff9-d907-4140-b95e-fb9d9df2a585
     """
-
+     
     #init API
     api = WebApi('http://%s:%s/%s/check_mk/webapi.py' %(target, port, cmk_site), cmk_user, cmk_secret)
-    
-    if type(method) == unicode:
-        method = str(method)
-    if type(method) == str and method in dir(api):
+     
+    if method in dir(api):
         # do not use eval with untrusty strings
         method = eval('api.' + method)
-
+     
     # filter salt __pub_ args (e.g. __pub_jid, __pub_pid, __pub_tgt)
     filter_args = {}
     for k, v in kwargs.items():
         if not k.startswith('__pub_'):
-           filter_args.update({k.encode('utf-8') : v })
+           filter_args.update({k : v })
     LOG.debug("kwargs call:" + pprint.pformat(filter_args))
 
-    LOG.debug(filter_args)
-    
     return method(**filter_args)
