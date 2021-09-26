@@ -27,10 +27,19 @@ def _convert_tag_list_to_dict(tag_list):
     return tags
 
 def _convert_tag_dict_to_tag_list(tag_dict):
-    tags = []
-    for k, v in tag_dict.items():
+    tags = []    
+    for k, v in sorted(tag_dict.items(), key = lambda x: (x[1]['topic'], x[1]['id'])):
+        if 'tags' in v:
+            # sort tag dropdown list
+            try:
+                v['tags'] = sorted(v['tags'], key=lambda x: (x['id'] is None, x['id'] == "", x['id']), reverse=True)
+            except Exception as e:
+                LOG.warning(e)
+                LOG.warning(pprint.pformat(v['tags']))
+                
         tags.append(v)
-    return tags
+    return tags  
+
 
 def _escape_tags(tag_dict):
     """
@@ -203,14 +212,15 @@ def site_connected(name, target, cmk_site, cmk_user, cmk_secret, port=80, force=
 
  
 
-def site_present(name, target, cmk_site, cmk_user, cmk_secret, port=80, **custom_attrs):
+def site_present(name, target, cmk_site, cmk_user, cmk_secret, port=80, skip_key=None, **custom_attrs):
     '''
     Ensure that the specified site is present at the cmk target system
-
+ 
     Params: 
         name (string) = site to add
+        skip_key(string) = If that key is already defined in site_config dict, compare logic will be skipped and no changes made
         site_config(dict)
-
+ 
     
     Example:
         name = 'datacenter2'
@@ -239,50 +249,67 @@ def site_present(name, target, cmk_site, cmk_user, cmk_secret, port=80, **custom
         'pchanges': {},
         }
     kwargs = {}
-
+ 
     base_kwargs = {  'method' : 'get_site',
                 'target' : target,
                 'cmk_site' : cmk_site,
                 'cmk_user' : cmk_user,
                 'cmk_secret' : cmk_secret,
                  }
-
+ 
     base_kwargs['site_id'] = name
     kwargs.update(base_kwargs)
     kwargs.update(custom_attrs)
-    
+ 
     # Todo: General function to parse the whole kwargs and convert each orderd_dict
     #        Is it possible to prevent rendering as orderddict by salt? 
     if type(kwargs['site_config']) == salt.utils.odict.OrderedDict:
         kwargs['site_config'] = _ordereddict_to_dict(kwargs['site_config'])
         #LOG.debug(_ordereddict_to_dict(kwargs['site_config']))
-
+ 
     # Unfortunately YAML safeloader doesn't support tuples
-    #LOG.debug(kwargs['site_config'])
-    keys = ['status_host'.encode('utf-8'), 'socket'.encode('utf-8')]
+    LOG.debug(pprint.pformat(kwargs['site_config']))
+    #keys = ['status_host'.encode("ascii","replace"), 'socket'.encode("ascii","replace")]
+    keys = ['status_host', 'socket' ]
     for key in keys:
         if key in kwargs['site_config']:
-            if type(kwargs['site_config'][key]) == list: 
-                kwargs['site_config'][key] = tuple(kwargs['site_config'][key])
+            if type(kwargs['site_config'][key]) == list and key == 'status_host':
+                # workaround to remove u'' prefix from key to prevent an WATO error
+                val_site, val_host = kwargs['site_config'][key]
+                kwargs['site_config'].pop(key)
+                kwargs['site_config'][key] = tuple([val_site.encode("ascii"), val_host.encode("ascii")])
+            elif type(kwargs['site_config'][key]) == list:
+                val = kwargs['site_config'][key]
+                kwargs['site_config'].pop(key)
+                kwargs['site_config'][key] = tuple(val)
+ 
     try:
-        key = 'socket'
-        if key in kwargs['site_config']['socket'][1]:
-            kwargs['site_config']['socket'][1][key] = tuple(kwargs['site_config']['socket'][1][key])
+        keys = [ 'address', 'tls']
+        for key in keys:
+            if key in kwargs['site_config']['socket'][1]:
+                # workaround to remove u'' prefix from key
+                val = tuple(kwargs['site_config']['socket'][1][key])
+                kwargs['site_config']['socket'][1].pop(key)
+                kwargs['site_config']['socket'][1][key] = val
     except:
         pass
-
+ 
     try:
         api_ret = __salt__['check-mk-web-api.call'](**base_kwargs)
+ 
         new_properties = {}
         ret['comment'] = api_ret
         LOG.debug(api_ret)
         #ignore secret, it will be managed by site_connected
         if 'secret' in api_ret['site_config']:
             api_ret['site_config'].pop('secret')
-
+ 
         if api_ret['site_config'] == kwargs['site_config']:
             ret['result'] = True
             ret['comment'] = "Site %s already in the correct state" %name
+        elif skip_key in api_ret['site_config']:
+            ret['result'] = True
+            ret['comment'] = "Site %s already in the correct state, skip_key: %s already defined" %(name, skip_key)
         else:
             try:
                 kwargs['method'] = 'set_site'
@@ -292,23 +319,22 @@ def site_present(name, target, cmk_site, cmk_user, cmk_secret, port=80, **custom
                 ret['comment'] = "Site %s already defined but does not match salt definition" %name
             except Exception as e:
                 ret['comment'] = pprint.pformat(e)
-
-
-
+ 
+ 
     except Exception as e:
         if re.match(r'Check_MK exception: Site id not found: .*', str(e)) is not None:
             kwargs['method'] = 'set_site'
             LOG.debug(pprint.pprint(kwargs))
-
+ 
             api_ret = __salt__['check-mk-web-api.call'](**kwargs)
             ret['result'] = True
             ret['changes'] = {'Site added' : name}
             ret['comment'] = "Site added %s" %name
         else:
             ret['comment'] = pprint.pformat(e)
-
+ 
     return ret
-
+ 
 
 
 
@@ -445,19 +471,21 @@ def folder_absent(name, target, cmk_site, cmk_user, cmk_secret):
     ret['comment'] = comment
     return ret
 
+
+
 def host_present(name, target, cmk_site, cmk_user, cmk_secret, discover=False, **custom_attrs):
-    '''
+    '''     
     Ensure that the specified host is present at the cmk target system
     TODO:  and has the defined attributes
-    '''
-    ret = {
+    '''     
+    ret = { 
         'name' : name,
         'changes': {},
         'result': False,
         'comment': '',
         'pchanges': {},
-        }
-
+        }   
+            
     LOG.debug(pprint.pformat(custom_attrs))
     kwargs = {}
     base_kwargs = {  'method' : 'add_host',
@@ -467,36 +495,40 @@ def host_present(name, target, cmk_site, cmk_user, cmk_secret, discover=False, *
                 'cmk_secret' : cmk_secret,
                 'hostname' : name
                  }
-    
+            
     kwargs.update(base_kwargs)
     kwargs.update(custom_attrs)
-
+            
     if 'tags' in kwargs:
         #LOG.error(kwargs['tags')
-        kwargs['tags'] = _escape_tags(kwargs['tags']) 
-
-    try: 
+        kwargs['tags'] = _escape_tags(kwargs['tags'])
+            
+    try:    
         api_ret = __salt__['check-mk-web-api.call'](**kwargs)
-        #if api_ret == None:
         if discover:
             base_kwargs['method'] = 'discover_services'
-            __salt__['check-mk-web-api.call'](**base_kwargs)
-
-        ret['result'] = True
+            base_kwargs['mode'] = 'fixall'
+            discover_ret = __salt__['check-mk-web-api.call'](**base_kwargs)
+            
         ret['changes'] = {  'Host added' : { 'Hostname' : name,
                                              'Params' : custom_attrs, }
                          }
+            
+        ret['result'] = True
+            
     except Exception as e:
         if re.match(r'Check_MK exception: Host .* already exists in the folder', str(e)) is not None:
             ret['result'] = True
             ret['comment'] = "Host already exists"
         else:
             ret['comment'] = pprint.pformat(e)
-
+            
     return ret
 
 
-def hosttags_present(name, target, cmk_site, cmk_user, cmk_secret, port=80, aux_tags={}, tag_groups={}):
+
+
+def hosttags_present(name, target, cmk_site, cmk_user, cmk_secret, port=80, aux_tags={}, tag_groups={}, activate_changes=False):
     '''
     Ensure that the specified hosttags are present at the cmk target system
 
@@ -594,10 +626,11 @@ def hosttags_present(name, target, cmk_site, cmk_user, cmk_secret, port=80, aux_
         ret['changes'] = changes
         ret['comment'] = '%s Tag definitions updated' %num_changes
 
-        kwargs['method'] = 'activate_changes'
-        kwargs['allow_foreign_changes'] = True
-        kwargs.pop('hosttags')
-        __salt__['check-mk-web-api.call'](**kwargs)
+        if activate_changes:
+            kwargs['method'] = 'activate_changes'
+            kwargs['allow_foreign_changes'] = True
+            kwargs.pop('hosttags')
+            __salt__['check-mk-web-api.call'](**kwargs)
 
     else:
         ret['comment'] = 'Tags are already in the correct state'
@@ -606,3 +639,49 @@ def hosttags_present(name, target, cmk_site, cmk_user, cmk_secret, port=80, aux_
             ret['result'] = True
 
     return ret
+
+def changes_activated(name, cmk_site, cmk_user, cmk_secret, target='localhost', sites=None,  allow_foreign_changes="1", **custom_attrs):
+    '''
+    Ensure that wato changes are activated / effective. If no site is specified, all changes for all sites will be activated.
+    '''
+    ret = {
+        'name' : name,
+        'changes': {},
+        'result': False,
+        'comment': '',
+        'pchanges': {},
+        }
+    
+    #LOG.debug(pprint.pformat(custom_attrs))
+    kwargs = {}
+    base_kwargs = {
+                'method' : 'activate_changes',
+                'target' : target,
+                'mode' : name,
+                'sites' : sites,
+                'allow_foreign_changes' : allow_foreign_changes,
+                'cmk_site' : cmk_site,
+                'cmk_user' : cmk_user,
+                'cmk_secret' : cmk_secret,
+                 }
+    
+    kwargs.update(base_kwargs)
+    kwargs.update(custom_attrs)
+    LOG.debug("lemke-test")
+    LOG.debug(pprint.pformat(kwargs))
+    
+    try:
+        api_ret = __salt__['check-mk-web-api.call'](**kwargs)
+        ret['comment'] = "Site(s) activated: %s" %pprint.pformat(base_kwargs['sites'])
+        ret['result'] = True
+    
+    except Exception as e:
+        if re.match(r'Check_MK exception: Currently there are no changes to activate', str(e)) is not None:
+            ret['result'] = True
+            ret['comment'] = "Currently there are no changes to activate"
+        else:
+            ret['comment'] = pprint.pformat(e)
+    
+    return ret
+
+
